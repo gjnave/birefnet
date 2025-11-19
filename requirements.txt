@@ -1,0 +1,13 @@
+numpy<2
+opencv-python
+tqdm
+timm
+prettytable
+scipy
+scikit-image
+kornia
+gradio_imageslider>=0.0.18
+transformers==4.42.4
+huggingface_hub==0.28.1
+einops
+pydantic==2.10.6
