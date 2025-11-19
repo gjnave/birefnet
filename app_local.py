@@ -19,7 +19,7 @@ from io import BytesIO
 import zipfile
 
 
-COMMON_RESOLUTIONS = ["512x512", "1024x1024", "1920x1080", "2048x2048", "2560x1440", "Custom"]
+COMMON_RESOLUTIONS = ["256x480", "480x480", "480x720", "512x512", "1024x1024", "1920x1080", "2048x2048", "2560x1440", "Custom"]
 
 torch.set_float32_matmul_precision('high')
 # torch.jit.script = lambda f: f
