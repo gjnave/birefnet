@@ -19,7 +19,7 @@ from io import BytesIO
 import zipfile
 
 
-COMMON_RESOLUTIONS = ["256x480", "480x480", "480x720", "512x512", "1024x1024", "1920x1080", "2048x2048", "2560x1440", "Custom"]
+COMMON_RESOLUTIONS = ["256x480", "480x256", "480x480", "480x720", "720x480", "512x512", "1024x1024", "1080x1920", "1920x1080", "1550x2560", "2048x2048", "2560x1440", "Custom"]
 
 torch.set_float32_matmul_precision('high')
 # torch.jit.script = lambda f: f
@@ -283,6 +283,7 @@ with gr.Blocks(title="Official Online Demo of BiRefNet") as demo:
     gr.Markdown(
         "<h1 align='center'><a href='https://getgoingfast.pro'>Get Going Fast</a></h1>"
         "<h3 align='center'><a href='https://music.youtube.com/channel/UCGV4scbVcBqo2aVTy23JJeA'>Listen to Good Music</a></h3>"
+        "<h1 align='center'>Official Online Demo of BiRefNet</h1>"
     )
 
     with gr.Tab("image"):
