@@ -1,3 +1,4 @@
+<img width="1108" height="443" alt="image" src="https://github.com/gjnave/VibeVoice/blob/main/assets/yout.jpg" />
 ---
 title: BiRefNet Demo
 emoji: 👁
