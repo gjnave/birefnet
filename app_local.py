@@ -19,6 +19,8 @@ from io import BytesIO
 import zipfile
 
 
+COMMON_RESOLUTIONS = ["512x512", "1024x1024", "1920x1080", "2048x2048", "2560x1440", "Custom"]
+
 torch.set_float32_matmul_precision('high')
 # torch.jit.script = lambda f: f
 
@@ -161,8 +163,14 @@ birefnet.eval(); birefnet.half()
 
 
 # @spaces.GPU
-def predict(images, resolution, weights_file):
+def predict(images, resolution_dropdown, resolution_custom, weights_file):
     assert (images is not None), 'AssertionError: images cannot be None.'
+
+    # Determine the resolution string
+    if resolution_dropdown == "Custom":
+        resolution_str = resolution_custom
+    else:
+        resolution_str = resolution_dropdown
 
     global birefnet
     # Load BiRefNet with chosen weights
@@ -173,7 +181,7 @@ def predict(images, resolution, weights_file):
     birefnet.eval(); birefnet.half()
 
     try:
-        resolution = [int(int(reso)//32*32) for reso in resolution.strip().split('x')]
+        resolution = [int(int(reso)//32*32) for reso in resolution_str.strip().split('x')]
     except:
         if weights_file in ['General-HR', 'Matting-HR']:
             resolution = (2048, 2048)
@@ -270,49 +278,89 @@ descriptions = ('Upload a picture, our model will extract a highly accurate segm
                  ' Our codes can be found at https://github.com/ZhengPeng7/BiRefNet.\n'
                  ' We also maintain the HF model of BiRefNet at https://huggingface.co/ZhengPeng7/BiRefNet for easier access.')
 
-tab_image = gr.Interface(
-    fn=predict,
-    inputs=[
-        gr.Image(label='Upload an image'),
-        gr.Textbox(lines=1, placeholder="Type the resolution (`WxH`) you want, e.g., `1024x1024`.", label="Resolution"),
-        gr.Radio(list(usage_to_weights_file.keys()), value='General', label="Weights", info="Choose the weights you want.")
-    ],
-    outputs=gr.ImageSlider(label="BiRefNet's prediction", type="pil", format='png'),
-    examples=examples,
-    api_name="image",
-    description=descriptions,
-)
 
-tab_text = gr.Interface(
-    fn=predict,
-    inputs=[
-        gr.Textbox(label="Paste an image URL"),
-        gr.Textbox(lines=1, placeholder="Type the resolution (`WxH`) you want, e.g., `1024x1024`.", label="Resolution"),
-        gr.Radio(list(usage_to_weights_file.keys()), value='General', label="Weights", info="Choose the weights you want.")
-    ],
-    outputs=gr.ImageSlider(label="BiRefNet's prediction", type="pil", format='png'),
-    examples=examples_url,
-    api_name="URL",
-    description=descriptions+'\nTab-URL is partially modified from https://huggingface.co/spaces/not-lain/background-removal, thanks to this great work!',
-)
+with gr.Blocks(title="Official Online Demo of BiRefNet") as demo:
+    gr.Markdown(
+        "<h1 align='center'><a href='https://getgoingfast.pro'>Get Going Fast</a></h1>"
+        "<h3 align='center'><a href='https://music.youtube.com/channel/UCGV4scbVcBqo2aVTy23JJeA'>Listen to Good Music</a></h3>"
+    )
 
-tab_batch = gr.Interface(
-    fn=predict,
-    inputs=[
-        gr.File(label="Upload multiple images", type="filepath", file_count="multiple"),
-        gr.Textbox(lines=1, placeholder="Type the resolution (`WxH`) you want, e.g., `1024x1024`.", label="Resolution"),
-        gr.Radio(list(usage_to_weights_file.keys()), value='General', label="Weights", info="Choose the weights you want.")
-    ],
-    outputs=[gr.Gallery(label="BiRefNet's predictions"), gr.File(label="Download masked images.")],
-    api_name="batch",
-    description=descriptions+'\nTab-batch is partially modified from https://huggingface.co/spaces/NegiTurkey/Multi_Birefnetfor_Background_Removal, thanks to this great work!',
-)
+    with gr.Tab("image"):
+        with gr.Row():
+            image_input = gr.Image(label='Upload an image')
+            image_output = gr.ImageSlider(label="BiRefNet's prediction", type="pil", format='png')
+        with gr.Row():
+            resolution_dropdown = gr.Dropdown(choices=COMMON_RESOLUTIONS, value="1024x1024", label="Resolution Preset")
+            resolution_custom = gr.Textbox(lines=1, placeholder="Type custom resolution (WxH), e.g., 1024x1024", label="Custom Resolution", visible=False)
+            weights_radio = gr.Radio(list(usage_to_weights_file.keys()), value='General', label="Weights", info="Choose the weights you want.")
+        
+        resolution_dropdown.change(
+            lambda value: gr.update(visible=value == "Custom"),
+            inputs=resolution_dropdown,
+            outputs=resolution_custom,
+            api_name=False,
+        )
+        
+        image_button = gr.Button("Generate Mask")
+        image_button.click(
+            fn=predict,
+            inputs=[image_input, resolution_dropdown, resolution_custom, weights_radio],
+            outputs=[image_output],
+            api_name="image",
+        )
+        gr.Examples(examples, inputs=[image_input, resolution_dropdown, weights_radio], fn=predict, outputs=image_output)
+        gr.Markdown(descriptions)
 
-demo = gr.TabbedInterface(
-    [tab_image, tab_text, tab_batch],
-    ['image', 'URL', 'batch'],
-    title="Official Online Demo of BiRefNet",
-)
+    with gr.Tab("URL"):
+        url_input = gr.Textbox(label="Paste an image URL")
+        url_output = gr.ImageSlider(label="BiRefNet's prediction", type="pil", format='png')
+        with gr.Row():
+            resolution_dropdown_url = gr.Dropdown(choices=COMMON_RESOLUTIONS, value="1024x1024", label="Resolution Preset")
+            resolution_custom_url = gr.Textbox(lines=1, placeholder="Type custom resolution (WxH), e.g., 1024x1024", label="Custom Resolution", visible=False)
+            weights_radio_url = gr.Radio(list(usage_to_weights_file.keys()), value='General', label="Weights", info="Choose the weights you want.")
+
+        resolution_dropdown_url.change(
+            lambda value: gr.update(visible=value == "Custom"),
+            inputs=resolution_dropdown_url,
+            outputs=resolution_custom_url,
+            api_name=False,
+        )
+
+        url_button = gr.Button("Generate Mask from URL")
+        url_button.click(
+            fn=predict,
+            inputs=[url_input, resolution_dropdown_url, resolution_custom_url, weights_radio_url],
+            outputs=[url_output],
+            api_name="URL",
+        )
+        gr.Examples(examples_url, inputs=[url_input, resolution_dropdown_url, weights_radio_url], fn=predict, outputs=url_output)
+        gr.Markdown(descriptions+'\nTab-URL is partially modified from https://huggingface.co/spaces/not-lain/background-removal, thanks to this great work!')
+
+    with gr.Tab("batch"):
+        batch_input = gr.File(label="Upload multiple images", type="filepath", file_count="multiple")
+        batch_gallery = gr.Gallery(label="BiRefNet's predictions")
+        batch_file_output = gr.File(label="Download masked images.")
+        with gr.Row():
+            resolution_dropdown_batch = gr.Dropdown(choices=COMMON_RESOLUTIONS, value="1024x1024", label="Resolution Preset")
+            resolution_custom_batch = gr.Textbox(lines=1, placeholder="Type custom resolution (WxH), e.g., 1024x1024", label="Custom Resolution", visible=False)
+            weights_radio_batch = gr.Radio(list(usage_to_weights_file.keys()), value='General', label="Weights", info="Choose the weights you want.")
+        
+        resolution_dropdown_batch.change(
+            lambda value: gr.update(visible=value == "Custom"),
+            inputs=resolution_dropdown_batch,
+            outputs=resolution_custom_batch,
+            api_name=False,
+        )
+
+        batch_button = gr.Button("Generate Masks for Batch")
+        batch_button.click(
+            fn=predict,
+            inputs=[batch_input, resolution_dropdown_batch, resolution_custom_batch, weights_radio_batch],
+            outputs=[batch_gallery, batch_file_output],
+            api_name="batch",
+        )
+        gr.Markdown(descriptions+'\nTab-batch is partially modified from https://huggingface.co/spaces/NegiTurkey/Multi_Birefnetfor_Background_Removal, thanks to this great work!')
+
 
 if __name__ == "__main__":
     demo.launch(debug=True)
