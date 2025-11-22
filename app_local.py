@@ -556,8 +556,14 @@ descriptions = """Upload a picture or video, and the model will extract a highly
 # Build Gradio Interface
 with gr.Blocks(title="BiRefNet - Background Removal") as demo:
     gr.Markdown(
-        "<h1 align='center'>BiRefNet - Background Removal</h1>"
-        "<h3 align='center'>Image & Video Processing</h3>"
+        "<div style='text-align: center;'>"
+        "<h1>BiRefNet - Background Removal</h1>"
+        "<h3>Official Online Demo of BiRefNet</h3>"
+        "<p style='margin-top: 20px;'>"
+        "<a href='https://getgoingfast.pro' target='_blank' style='color: #4A90E2; text-decoration: none; font-weight: bold;'>Get Going Fast</a> | "
+        "<a href='https://music.youtube.com/channel/UCGV4scbVcBqo2aVTy23JJeA' target='_blank' style='color: #4A90E2; text-decoration: none; font-weight: bold;'>Listen to Good Music</a>"
+        "</p>"
+        "</div>"
     )
 
     with gr.Tab("Image"):
