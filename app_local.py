@@ -232,12 +232,23 @@ def process_single_image(image, resolution):
     return image_masked, image_ori
 
 
-def predict(images, resolution_dropdown, resolution_custom, weights_file):
+def predict(images, resolution_dropdown, resolution_custom, weights_file, bg_color=None, bg_image=None):
     """Main prediction function for images"""
     assert images is not None, 'AssertionError: images cannot be None.'
 
     resolution = get_resolution(resolution_dropdown, resolution_custom, weights_file)
     load_model(weights_file)
+
+    # Parse background color
+    bg = None
+    if bg_color == "Green":
+        bg = (0, 255, 0)
+    elif bg_color == "Black":
+        bg = (0, 0, 0)
+    elif bg_color == "White":
+        bg = (255, 255, 255)
+    elif bg_color == "Custom Image":
+        bg = "custom"
 
     if isinstance(images, list):
         # Batch processing
@@ -256,6 +267,18 @@ def predict(images, resolution_dropdown, resolution_custom, weights_file):
                 image_ori = Image.fromarray(image_src)
 
             image_masked, _ = process_single_image(image_ori, resolution)
+            
+            # Apply background if specified
+            if bg == "custom" and bg_image is not None:
+                custom_bg_pil = Image.open(bg_image) if isinstance(bg_image, str) else Image.fromarray(bg_image)
+                custom_bg_pil = custom_bg_pil.convert('RGB').resize(image_masked.size)
+                composite = Image.alpha_composite(custom_bg_pil.convert('RGBA'), image_masked)
+                image_masked = composite
+            elif bg is not None:
+                bg_img = Image.new('RGBA', image_masked.size, bg + (255,))
+                composite = Image.alpha_composite(bg_img, image_masked)
+                image_masked = composite
+            
             torch.cuda.empty_cache()
 
             save_file_path = os.path.join(save_dir, f"{os.path.splitext(os.path.basename(image_src))[0]}.png")
@@ -280,6 +303,18 @@ def predict(images, resolution_dropdown, resolution_custom, weights_file):
             image_ori = Image.fromarray(images)
 
         image_masked, image_ori = process_single_image(image_ori, resolution)
+        
+        # Apply background if specified
+        if bg == "custom" and bg_image is not None:
+            custom_bg_pil = Image.open(bg_image) if isinstance(bg_image, str) else Image.fromarray(bg_image)
+            custom_bg_pil = custom_bg_pil.convert('RGB').resize(image_masked.size)
+            composite = Image.alpha_composite(custom_bg_pil.convert('RGBA'), image_masked)
+            image_masked = composite
+        elif bg is not None:
+            bg_img = Image.new('RGBA', image_masked.size, bg + (255,))
+            composite = Image.alpha_composite(bg_img, image_masked)
+            image_masked = composite
+        
         torch.cuda.empty_cache()
         return image_masked
 
@@ -547,16 +582,36 @@ with gr.Blocks(title="BiRefNet - Background Removal") as demo:
                 label="Model Weights"
             )
         
+        with gr.Row():
+            bg_color_image = gr.Dropdown(
+                choices=["Transparent", "Green", "Black", "White", "Custom Image"],
+                value="Transparent",
+                label="Background Color"
+            )
+        
+        with gr.Row():
+            bg_image_image = gr.Image(
+                label="Custom Background Image",
+                visible=False,
+                type="filepath"
+            )
+        
         resolution_dropdown.change(
             lambda v: gr.update(visible=v == "Custom"),
             inputs=resolution_dropdown,
             outputs=resolution_custom,
         )
         
+        bg_color_image.change(
+            lambda v: gr.update(visible=v == "Custom Image"),
+            inputs=bg_color_image,
+            outputs=bg_image_image,
+        )
+        
         image_button = gr.Button("Remove Background", variant="primary")
         image_button.click(
             fn=predict,
-            inputs=[image_input, resolution_dropdown, resolution_custom, weights_radio],
+            inputs=[image_input, resolution_dropdown, resolution_custom, weights_radio, bg_color_image, bg_image_image],
             outputs=[image_output],
         )
         gr.Examples(examples, inputs=[image_input, resolution_dropdown, weights_radio], fn=predict, outputs=image_output)
@@ -655,16 +710,36 @@ with gr.Blocks(title="BiRefNet - Background Removal") as demo:
                 label="Model Weights"
             )
 
+        with gr.Row():
+            bg_color_url = gr.Dropdown(
+                choices=["Transparent", "Green", "Black", "White", "Custom Image"],
+                value="Transparent",
+                label="Background Color"
+            )
+        
+        with gr.Row():
+            bg_image_url = gr.Image(
+                label="Custom Background Image",
+                visible=False,
+                type="filepath"
+            )
+
         resolution_dropdown_url.change(
             lambda v: gr.update(visible=v == "Custom"),
             inputs=resolution_dropdown_url,
             outputs=resolution_custom_url,
         )
 
+        bg_color_url.change(
+            lambda v: gr.update(visible=v == "Custom Image"),
+            inputs=bg_color_url,
+            outputs=bg_image_url,
+        )
+
         url_button = gr.Button("Remove Background", variant="primary")
         url_button.click(
             fn=predict,
-            inputs=[url_input, resolution_dropdown_url, resolution_custom_url, weights_radio_url],
+            inputs=[url_input, resolution_dropdown_url, resolution_custom_url, weights_radio_url, bg_color_url, bg_image_url],
             outputs=[url_output],
         )
         gr.Examples(examples_url, inputs=[url_input, resolution_dropdown_url, weights_radio_url], fn=predict, outputs=url_output)
@@ -696,16 +771,36 @@ with gr.Blocks(title="BiRefNet - Background Removal") as demo:
                 label="Model Weights"
             )
         
+        with gr.Row():
+            bg_color_batch = gr.Dropdown(
+                choices=["Transparent", "Green", "Black", "White", "Custom Image"],
+                value="Transparent",
+                label="Background Color"
+            )
+        
+        with gr.Row():
+            bg_image_batch = gr.Image(
+                label="Custom Background Image",
+                visible=False,
+                type="filepath"
+            )
+        
         resolution_dropdown_batch.change(
             lambda v: gr.update(visible=v == "Custom"),
             inputs=resolution_dropdown_batch,
             outputs=resolution_custom_batch,
         )
 
+        bg_color_batch.change(
+            lambda v: gr.update(visible=v == "Custom Image"),
+            inputs=bg_color_batch,
+            outputs=bg_image_batch,
+        )
+
         batch_button = gr.Button("Process Batch", variant="primary")
         batch_button.click(
             fn=predict,
-            inputs=[batch_input, resolution_dropdown_batch, resolution_custom_batch, weights_radio_batch],
+            inputs=[batch_input, resolution_dropdown_batch, resolution_custom_batch, weights_radio_batch, bg_color_batch, bg_image_batch],
             outputs=[batch_gallery, batch_file_output],
         )
 
