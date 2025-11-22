@@ -269,7 +269,7 @@ def predict(images, resolution_dropdown, resolution_custom, weights_file):
 
         image_masked, image_ori = process_single_image(image_ori, resolution)
         torch.cuda.empty_cache()
-        return (image_masked, image_ori)
+        return image_masked
 
 
 def process_video(video_path, resolution_dropdown, resolution_custom, weights_file, 
