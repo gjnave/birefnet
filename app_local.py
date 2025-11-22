@@ -5,6 +5,7 @@ import torch
 import gradio as gr
 import tempfile
 import shutil
+import subprocess
 
 from glob import glob
 from typing import Tuple
@@ -17,6 +18,17 @@ import requests
 from io import BytesIO
 import zipfile
 from tqdm import tqdm
+
+# Check for ffmpeg
+def check_ffmpeg():
+    try:
+        subprocess.run(['ffmpeg', '-version'], capture_output=True, check=True)
+        return True
+    except:
+        print("WARNING: ffmpeg not found. Audio will not be preserved in video output.")
+        return False
+
+HAS_FFMPEG = check_ffmpeg()
 
 
 COMMON_RESOLUTIONS = ["256x480", "480x256", "480x480", "480x720", "720x480", "512x512", "1024x1024", "1080x1920", "1920x1080", "1550x2560", "2048x2048", "2560x1440", "Custom"]
@@ -404,28 +416,63 @@ def process_video(video_path, resolution_dropdown, resolution_custom, weights_fi
             out.release()
 
     # Extract and merge audio if present
-    try:
-        import subprocess
-        # Check if video has audio
-        probe_cmd = ['ffprobe', '-i', video_path, '-show_streams', '-select_streams', 'a', '-loglevel', 'error']
-        result = subprocess.run(probe_cmd, capture_output=True, text=True)
-        
-        if result.stdout:  # Has audio
-            audio_path = os.path.join(temp_dir, "audio.aac")
-            final_output = os.path.join(temp_dir, f"final_output{output_ext}")
+    if HAS_FFMPEG and output_format != "PNG sequence (zip)":
+        try:
+            # Check if video has audio stream
+            probe_cmd = [
+                'ffprobe', '-v', 'error', '-select_streams', 'a:0',
+                '-show_entries', 'stream=codec_type', '-of', 'csv=p=0', video_path
+            ]
+            result = subprocess.run(probe_cmd, capture_output=True, text=True)
             
-            # Extract audio
-            subprocess.run(['ffmpeg', '-y', '-i', video_path, '-vn', '-acodec', 'copy', audio_path], 
-                         capture_output=True, check=True)
-            
-            # Merge audio with video
-            subprocess.run(['ffmpeg', '-y', '-i', output_path, '-i', audio_path, 
-                          '-c:v', 'copy', '-c:a', 'aac', '-shortest', final_output],
-                         capture_output=True, check=True)
-            
-            output_path = final_output
-    except Exception as e:
-        print(f"Audio processing skipped: {e}")
+            if 'audio' in result.stdout.lower():
+                print("Audio stream detected, merging...")
+                audio_path = os.path.join(temp_dir, "audio.aac")
+                final_output = os.path.join(temp_dir, f"final_with_audio{output_ext}")
+                
+                # Extract audio from original video (re-encode to ensure compatibility)
+                extract_cmd = [
+                    'ffmpeg', '-y', '-i', video_path,
+                    '-vn', '-c:a', 'aac', '-b:a', '192k', '-ar', '44100', audio_path
+                ]
+                result = subprocess.run(extract_cmd, capture_output=True, text=True)
+                if result.returncode != 0:
+                    print(f"Audio extraction failed: {result.stderr}")
+                    raise Exception("Audio extraction failed")
+                
+                # Merge audio with processed video
+                if output_format == "webm (VP9 + transparency)":
+                    merge_cmd = [
+                        'ffmpeg', '-y',
+                        '-i', output_path,
+                        '-i', audio_path,
+                        '-c:v', 'copy', '-c:a', 'libopus', '-b:a', '128k',
+                        '-shortest', final_output
+                    ]
+                else:  # mp4
+                    merge_cmd = [
+                        'ffmpeg', '-y',
+                        '-i', output_path,
+                        '-i', audio_path,
+                        '-c:v', 'copy', '-c:a', 'aac', '-b:a', '192k',
+                        '-shortest', final_output
+                    ]
+                
+                result = subprocess.run(merge_cmd, capture_output=True, text=True)
+                if result.returncode != 0:
+                    print(f"Audio merge failed: {result.stderr}")
+                    raise Exception("Audio merge failed")
+                
+                # Verify the output file exists and has size
+                if os.path.exists(final_output) and os.path.getsize(final_output) > 0:
+                    output_path = final_output
+                    print("Audio merged successfully!")
+                else:
+                    print("Audio merge failed, using video without audio")
+            else:
+                print("No audio stream found in source video")
+        except Exception as e:
+            print(f"Audio processing error: {e}")
 
     progress(1.0, desc="Complete!")
     
