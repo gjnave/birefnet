@@ -285,7 +285,7 @@ def predict(images, resolution_dropdown, resolution_custom, weights_file):
 
 
 def process_video(video_path, resolution_dropdown, resolution_custom, weights_file, 
-                  output_format, bg_color, progress=gr.Progress()):
+                  output_format, bg_color, bg_image, progress=gr.Progress()):
     """Process video frame by frame"""
     assert video_path is not None, 'Please upload a video.'
 
@@ -324,8 +324,17 @@ def process_video(video_path, resolution_dropdown, resolution_custom, weights_fi
         bg = (0, 0, 0)
     elif bg_color == "White":
         bg = (255, 255, 255)
+    elif bg_color == "Custom Image":
+        bg = "custom"
     else:
         bg = None
+
+    # Load custom background image if provided
+    custom_bg_pil = None
+    if bg == "custom" and bg_image is not None:
+        custom_bg_pil = Image.open(bg_image) if isinstance(bg_image, str) else Image.fromarray(bg_image)
+        custom_bg_pil = custom_bg_pil.convert('RGB')
+        custom_bg_pil = custom_bg_pil.resize((width, height))
 
     frames_output = []
     
@@ -345,8 +354,12 @@ def process_video(video_path, resolution_dropdown, resolution_custom, weights_fi
         image_masked, _ = process_single_image(image, resolution)
         
         # Apply background if needed
-        if bg is not None and not has_alpha:
-            # Composite onto background
+        if bg == "custom" and custom_bg_pil is not None:
+            # Composite onto custom background
+            composite = Image.alpha_composite(custom_bg_pil.convert('RGBA'), image_masked)
+            frame_result = np.array(composite.convert('RGB'))
+        elif bg is not None and not has_alpha:
+            # Composite onto solid color background
             bg_image = Image.new('RGBA', image_masked.size, bg + (255,))
             composite = Image.alpha_composite(bg_image, image_masked)
             frame_result = np.array(composite.convert('RGB'))
@@ -588,10 +601,17 @@ with gr.Blocks(title="BiRefNet - Background Removal") as demo:
                 label="Output Format"
             )
             bg_color = gr.Dropdown(
-                choices=["Transparent", "Green", "Black", "White"],
+                choices=["Transparent", "Green", "Black", "White", "Custom Image"],
                 value="Transparent",
                 label="Background Color",
                 info="For formats without transparency support"
+            )
+
+        with gr.Row():
+            bg_image = gr.Image(
+                label="Custom Background Image",
+                visible=False,
+                type="filepath"
             )
 
         resolution_dropdown_video.change(
@@ -600,11 +620,17 @@ with gr.Blocks(title="BiRefNet - Background Removal") as demo:
             outputs=resolution_custom_video,
         )
 
+        bg_color.change(
+            lambda v: gr.update(visible=v == "Custom Image"),
+            inputs=bg_color,
+            outputs=bg_image,
+        )
+
         video_button = gr.Button("Process Video", variant="primary")
         video_button.click(
             fn=process_video,
             inputs=[video_input, resolution_dropdown_video, resolution_custom_video, 
-                   weights_radio_video, output_format, bg_color],
+                   weights_radio_video, output_format, bg_color, bg_image],
             outputs=[video_output, video_file_output],
         )
 
